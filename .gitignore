@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ClearWeb additions
+# Secrets - never upload these
+.env
+.env.*
+
+# Node
+node_modules/
+dist/
+
+# Mac
+.DS_Store
