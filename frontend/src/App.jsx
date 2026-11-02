@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { checkBackend, extractArticle } from './api.js'
+import { ReadingControls } from './components/ReadingControls.jsx'
+import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
 function App() {
   // Navigation state: 'input' | 'loading' | 'reader'
@@ -9,12 +11,32 @@ function App() {
   const [article, setArticle] = useState(null)
   const [errorMessage, setErrorMessage] = useState('')
 
+  // Reading customization preferences (saved in localStorage)
+  const [preferences, setPreferences] = useState(() => {
+    try {
+      const saved = localStorage.getItem('clearweb_reading_prefs')
+      return saved ? { ...DEFAULT_PREFERENCES, ...JSON.parse(saved) } : DEFAULT_PREFERENCES
+    } catch {
+      return DEFAULT_PREFERENCES
+    }
+  })
+  const [isControlsOpen, setIsControlsOpen] = useState(false)
+
   // Backend connection health
   const [backendStatus, setBackendStatus] = useState('checking')
   const [backendErrorMessage, setBackendErrorMessage] = useState('')
 
   // Ref to refocus the input when returning to the input screen
   const urlInputRef = useRef(null)
+
+  // Persist reading preferences to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('clearweb_reading_prefs', JSON.stringify(preferences))
+    } catch {
+      // LocalStorage might be disabled in private browsing; ignore gracefully
+    }
+  }, [preferences])
 
   // Verify backend connectivity on initial mount
   useEffect(() => {
@@ -62,10 +84,18 @@ function App() {
   function handleBackToInput() {
     setView('input')
     setErrorMessage('')
-    // Wait for DOM to update, then focus the URL input for keyboard users
     setTimeout(() => {
       urlInputRef.current?.focus()
     }, 50)
+  }
+
+  // Handlers for reading customization
+  function handleChangePreference(key, value) {
+    setPreferences((prev) => ({ ...prev, [key]: value }))
+  }
+
+  function handleResetPreferences() {
+    setPreferences(DEFAULT_PREFERENCES)
   }
 
   // Format reading time estimation (~200 words per minute)
@@ -73,8 +103,98 @@ function App() {
     ? Math.max(1, Math.round(article.word_count / 200))
     : null
 
+  // Computed styles based on user's reading preferences
+  const theme = view === 'reader' ? preferences.theme : 'light'
+
+  // 1. Overall page styling
+  const pageThemeClass = {
+    light: 'bg-slate-50 text-slate-900',
+    sepia: 'bg-[#f4ebd9] text-stone-900',
+    dark: 'bg-[#0b0f17] text-gray-100',
+    'high-contrast': 'bg-black text-[#ffff00]',
+  }[theme]
+
+  // 2. Header and footer styling
+  const headerThemeClass = {
+    light: 'bg-white border-slate-200 text-slate-900',
+    sepia: 'bg-[#fbf6ea] border-[#e7dbca] text-stone-900',
+    dark: 'bg-[#111827] border-gray-800 text-gray-100',
+    'high-contrast': 'bg-black border-b-2 border-[#ffff00] text-[#ffff00]',
+  }[theme]
+
+  // 3. Reader article card styling
+  const articleCardThemeClass = {
+    light: 'bg-white border border-slate-200 shadow-sm',
+    sepia: 'bg-[#fbf6ea] border border-[#e7dbca] shadow-sm',
+    dark: 'bg-[#111827] border border-gray-800 shadow-sm',
+    'high-contrast': 'bg-black border-2 border-[#ffff00]',
+  }[preferences.theme]
+
+  // 4. Headline and text colors
+  const titleColorClass = {
+    light: 'text-slate-900',
+    sepia: 'text-stone-900',
+    dark: 'text-gray-50',
+    'high-contrast': 'text-[#ffff00]',
+  }[preferences.theme]
+
+  const metaColorClass = {
+    light: 'text-slate-700',
+    sepia: 'text-stone-700',
+    dark: 'text-gray-400',
+    'high-contrast': 'text-white',
+  }[preferences.theme]
+
+  const bodyTextColorClass = {
+    light: 'text-slate-800',
+    sepia: 'text-stone-800',
+    dark: 'text-gray-200',
+    'high-contrast': 'text-[#ffff00]',
+  }[preferences.theme]
+
+  const secondaryBtnClass = {
+    light: 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300 focus:outline-blue-700',
+    sepia: 'bg-[#eee3ce] hover:bg-[#e4d7bf] text-stone-900 border-[#e1d3bf] focus:outline-amber-800',
+    dark: 'bg-gray-800 hover:bg-gray-700 text-gray-100 border-gray-700 focus:outline-blue-400',
+    'high-contrast': 'bg-black text-[#ffff00] border-2 border-[#ffff00] hover:bg-[#ffff00] hover:text-black focus:outline-[#00ffff]',
+  }[preferences.theme]
+
+  const primaryBtnClass = {
+    light: 'bg-blue-800 hover:bg-blue-900 text-white focus:outline-blue-700 shadow',
+    sepia: 'bg-amber-900 hover:bg-amber-950 text-white focus:outline-amber-800 shadow',
+    dark: 'bg-blue-600 hover:bg-blue-500 text-white focus:outline-blue-400 shadow',
+    'high-contrast': 'bg-[#ffff00] text-black border-2 border-[#ffff00] hover:bg-white hover:text-black focus:outline-[#00ffff]',
+  }[preferences.theme]
+
+  // 5. Typography customization mappings
+  const fontSizeClass = {
+    small: 'text-base',
+    medium: 'text-lg',
+    large: 'text-xl',
+    xlarge: 'text-2xl',
+  }[preferences.fontSize] || 'text-lg'
+
+  const lineHeightClass = {
+    normal: 'leading-normal',
+    relaxed: 'leading-relaxed',
+    loose: 'leading-loose',
+  }[preferences.lineHeight] || 'leading-relaxed'
+
+  const fontFamilyClass = {
+    sans: 'font-sans',
+    serif: 'font-serif',
+    mono: 'font-mono',
+    dyslexic: 'font-sans tracking-wide',
+  }[preferences.fontFamily] || 'font-sans'
+
+  const contentWidthClass = {
+    narrow: 'max-w-xl',
+    medium: 'max-w-2xl',
+    wide: 'max-w-4xl',
+  }[preferences.contentWidth] || 'max-w-2xl'
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className={`min-h-screen flex flex-col transition-colors duration-200 ${pageThemeClass}`}>
       {/* Skip to main content link for keyboard and screen reader accessibility */}
       <a
         href="#main-content"
@@ -84,13 +204,23 @@ function App() {
       </a>
 
       {/* Top Banner / Navigation */}
-      <header className="border-b border-slate-200 bg-white">
+      <header className={`border-b transition-colors duration-200 ${headerThemeClass}`}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-tight text-blue-900">
+            <span className="text-xl font-bold tracking-tight">
               ClearWeb
             </span>
-            <span className="text-xs bg-blue-100 text-blue-900 font-semibold px-2 py-0.5 rounded">
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                theme === 'high-contrast'
+                  ? 'bg-[#ffff00] text-black'
+                  : theme === 'dark'
+                  ? 'bg-gray-800 text-blue-400'
+                  : theme === 'sepia'
+                  ? 'bg-[#e7dbca] text-amber-950'
+                  : 'bg-blue-100 text-blue-900'
+              }`}
+            >
               Reader
             </span>
           </div>
@@ -98,21 +228,42 @@ function App() {
           {/* Backend Status indicator */}
           <div className="flex items-center text-xs font-medium">
             {backendStatus === 'checking' && (
-              <span className="text-slate-600">Connecting to server...</span>
+              <span className="opacity-75">Connecting to server...</span>
             )}
             {backendStatus === 'connected' && (
-              <span className="text-emerald-800 flex items-center gap-1.5">
+              <span
+                className={`flex items-center gap-1.5 ${
+                  theme === 'high-contrast'
+                    ? 'text-[#ffff00]'
+                    : theme === 'dark'
+                    ? 'text-emerald-400'
+                    : 'text-emerald-800'
+                }`}
+              >
                 <span
-                  className="w-2 h-2 rounded-full bg-emerald-600 inline-block"
+                  className={`w-2 h-2 rounded-full inline-block ${
+                    theme === 'high-contrast' ? 'bg-[#ffff00]' : 'bg-emerald-600'
+                  }`}
                   aria-hidden="true"
                 />
                 Server ready
               </span>
             )}
             {backendStatus === 'failed' && (
-              <span className="text-rose-800 flex items-center gap-1.5" title={backendErrorMessage}>
+              <span
+                className={`flex items-center gap-1.5 ${
+                  theme === 'high-contrast'
+                    ? 'text-[#ffff00] underline'
+                    : theme === 'dark'
+                    ? 'text-rose-400'
+                    : 'text-rose-800'
+                }`}
+                title={backendErrorMessage}
+              >
                 <span
-                  className="w-2 h-2 rounded-full bg-rose-600 inline-block"
+                  className={`w-2 h-2 rounded-full inline-block ${
+                    theme === 'high-contrast' ? 'bg-[#ffff00]' : 'bg-rose-600'
+                  }`}
                   aria-hidden="true"
                 />
                 Server disconnected
@@ -123,7 +274,7 @@ function App() {
       </header>
 
       {/* Main Content Area */}
-      <main id="main-content" className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+      <main id="main-content" className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         {/* VIEW 1: URL Input Form */}
         {view === 'input' && (
           <div className="max-w-2xl mx-auto py-6">
@@ -259,100 +410,130 @@ function App() {
           </div>
         )}
 
-        {/* VIEW 3: Clean Reader Interface */}
+        {/* VIEW 3: Clean Reader Interface with Stage 5 Customization */}
         {view === 'reader' && article && (
-          <article className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 p-6 sm:p-10 shadow-sm">
-            {/* Top Back Navigation */}
-            <div className="mb-6 pb-4 border-b border-slate-200 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={handleBackToInput}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 px-3.5 py-2 text-sm font-semibold focus:outline-2 focus:outline-offset-2 focus:outline-blue-700 transition cursor-pointer"
-              >
-                <span aria-hidden="true">←</span> Enter another address
-              </button>
+          <div className={`${contentWidthClass} mx-auto`}>
+            {/* Stage 5 Reading Customization Controls */}
+            <ReadingControls
+              preferences={preferences}
+              onChangePreference={handleChangePreference}
+              onResetPreferences={handleResetPreferences}
+              isOpen={isControlsOpen}
+              onToggleOpen={() => setIsControlsOpen((prev) => !prev)}
+            />
 
-              {article.url && (
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold text-blue-800 hover:text-blue-950 underline focus:outline-2 focus:outline-blue-700 rounded p-1"
+            {/* Article Container */}
+            <article className={`rounded-xl p-6 sm:p-10 transition-colors duration-200 ${articleCardThemeClass}`}>
+              {/* Top Back Navigation & Original Link */}
+              <div className="mb-6 pb-4 border-b border-current/15 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleBackToInput}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${secondaryBtnClass}`}
                 >
-                  Original page <span aria-hidden="true">↗</span>
-                </a>
-              )}
-            </div>
+                  <span aria-hidden="true">←</span> Enter another address
+                </button>
 
-            {/* Article Header */}
-            <header className="mb-8">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight mb-4">
-                {article.title || 'Untitled Article'}
-              </h1>
-
-              {/* Metadata details */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-700">
-                {article.site_name && (
-                  <span className="font-semibold text-slate-900">
-                    {article.site_name}
-                  </span>
-                )}
-                {article.author && (
-                  <span>By {article.author}</span>
-                )}
-                {article.date && (
-                  <time dateTime={article.date}>
-                    Published {article.date}
-                  </time>
-                )}
-                {article.word_count > 0 && (
-                  <span>
-                    {article.word_count.toLocaleString()} words
-                    {readingTime && ` (~${readingTime} min read)`}
-                  </span>
+                {article.url && (
+                  <a
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`text-xs font-semibold underline rounded p-1 transition focus:outline-2 ${
+                      preferences.theme === 'high-contrast'
+                        ? 'text-[#ffff00] hover:text-white focus:outline-[#00ffff]'
+                        : preferences.theme === 'dark'
+                        ? 'text-blue-400 hover:text-blue-300 focus:outline-blue-400'
+                        : preferences.theme === 'sepia'
+                        ? 'text-amber-900 hover:text-amber-950 focus:outline-amber-800'
+                        : 'text-blue-800 hover:text-blue-950 focus:outline-blue-700'
+                    }`}
+                  >
+                    Original page <span aria-hidden="true">↗</span>
+                  </a>
                 )}
               </div>
 
-              {/* Truncation notification if text exceeded limit */}
-              {article.truncated && (
-                <div
-                  role="note"
-                  className="mt-4 rounded-md bg-amber-50 border border-amber-300 p-3 text-xs text-amber-900"
+              {/* Article Header */}
+              <header className="mb-8">
+                <h1
+                  className={`text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight leading-tight mb-4 ${titleColorClass} ${fontFamilyClass}`}
                 >
-                  <strong>Note:</strong> This article was very long and was shortened to 300,000 characters for optimal reading performance.
+                  {article.title || 'Untitled Article'}
+                </h1>
+
+                {/* Metadata details */}
+                <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-sm ${metaColorClass}`}>
+                  {article.site_name && (
+                    <span className="font-semibold">
+                      {article.site_name}
+                    </span>
+                  )}
+                  {article.author && (
+                    <span>By {article.author}</span>
+                  )}
+                  {article.date && (
+                    <time dateTime={article.date}>
+                      Published {article.date}
+                    </time>
+                  )}
+                  {article.word_count > 0 && (
+                    <span>
+                      {article.word_count.toLocaleString()} words
+                      {readingTime && ` (~${readingTime} min read)`}
+                    </span>
+                  )}
                 </div>
-              )}
-            </header>
 
-            {/* Article Paragraphs */}
-            <div className="space-y-6 text-slate-800 text-lg leading-relaxed font-normal">
-              {article.paragraphs && article.paragraphs.length > 0 ? (
-                article.paragraphs.map((para, index) => (
-                  <p key={index}>{para}</p>
-                ))
-              ) : (
-                <p className="text-slate-600 italic">No readable text found for this article.</p>
-              )}
-            </div>
+                {/* Truncation notification if text exceeded limit */}
+                {article.truncated && (
+                  <div
+                    role="note"
+                    className={`mt-4 rounded-md border p-3 text-xs ${
+                      preferences.theme === 'high-contrast'
+                        ? 'bg-black border-[#ffff00] text-[#ffff00]'
+                        : preferences.theme === 'dark'
+                        ? 'bg-amber-950/40 border-amber-800 text-amber-200'
+                        : 'bg-amber-50 border-amber-300 text-amber-900'
+                    }`}
+                  >
+                    <strong>Note:</strong> This article was very long and was shortened to 300,000 characters for optimal reading performance.
+                  </div>
+                )}
+              </header>
 
-            {/* Bottom Navigation */}
-            <footer className="mt-12 pt-6 border-t border-slate-200 flex justify-center">
-              <button
-                type="button"
-                onClick={handleBackToInput}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-800 hover:bg-blue-900 text-white px-5 py-2.5 text-base font-semibold focus:outline-2 focus:outline-offset-2 focus:outline-blue-700 shadow transition cursor-pointer"
+              {/* Article Paragraphs with Stage 5 Dynamic Typography */}
+              <div
+                className={`space-y-6 font-normal ${bodyTextColorClass} ${fontSizeClass} ${lineHeightClass} ${fontFamilyClass}`}
               >
-                <span aria-hidden="true">↑</span> Read another webpage
-              </button>
-            </footer>
-          </article>
+                {article.paragraphs && article.paragraphs.length > 0 ? (
+                  article.paragraphs.map((para, index) => (
+                    <p key={index}>{para}</p>
+                  ))
+                ) : (
+                  <p className="opacity-75 italic">No readable text found for this article.</p>
+                )}
+              </div>
+
+              {/* Bottom Navigation */}
+              <footer className="mt-12 pt-6 border-t border-current/15 flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleBackToInput}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-5 py-2.5 text-base font-semibold cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${primaryBtnClass}`}
+                >
+                  <span aria-hidden="true">↑</span> Read another webpage
+                </button>
+              </footer>
+            </article>
+          </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-600">
-        <div className="max-w-4xl mx-auto px-4">
-          ClearWeb Accessibility Reader — Stage 4
+      <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
+        <div className="max-w-4xl mx-auto px-4 opacity-80">
+          ClearWeb Accessibility Reader — Stage 5
         </div>
       </footer>
     </div>
