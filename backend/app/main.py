@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routes import urls
+
 app = FastAPI(title="ClearWeb API")
 
 # CORS = a browser safety rule. By default, a website running on one address
@@ -18,3 +20,6 @@ app.add_middleware(
 def health_check():
     """A tiny page that just says the backend is alive."""
     return {"status": "ok"}
+
+
+app.include_router(urls.router)
