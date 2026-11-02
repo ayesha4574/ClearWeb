@@ -14,6 +14,7 @@ export function AISummary({
   preferences = {},
   tts,
   activeParagraphClass = '',
+  onSummaryGenerated,
 }) {
   const [length, setLength] = useState('medium')
   const [status, setStatus] = useState('idle') // 'idle' | 'loading' | 'success' | 'error'
@@ -57,6 +58,9 @@ export function AISummary({
     if (result.ok) {
       setSummaryData(result.data)
       setStatus('success')
+      if (onSummaryGenerated) {
+        onSummaryGenerated(result.data)
+      }
     } else {
       setError({ code: result.code, message: result.message })
       setStatus('error')

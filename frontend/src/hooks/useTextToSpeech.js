@@ -57,6 +57,8 @@ export function useTextToSpeech(paragraphs = []) {
   const [rate, setRate] = useState(1.0)
   const [voices, setVoices] = useState([])
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('')
+  const [hasListenedArticle, setHasListenedArticle] = useState(false)
+  const [hasListenedSummary, setHasListenedSummary] = useState(false)
 
   // Ref to hold state values for speech event listeners without stale closures
   const stateRef = useRef({
@@ -200,6 +202,7 @@ export function useTextToSpeech(paragraphs = []) {
   const play = useCallback(
     (startIndex = 0) => {
       if (!isSupported || !stateRef.current.paragraphs?.length) return
+      setHasListenedArticle(true)
       setSource('article')
       stateRef.current.source = 'article'
 
@@ -220,6 +223,7 @@ export function useTextToSpeech(paragraphs = []) {
     (items = [], startIndex = 0, sourceId = 'summary') => {
       if (!isSupported || !items?.length) return
       window.speechSynthesis.cancel()
+      setHasListenedSummary(true)
       setCustomList(items)
       stateRef.current.customList = items
       setSource(sourceId)
@@ -269,6 +273,8 @@ export function useTextToSpeech(paragraphs = []) {
     rate,
     voices,
     selectedVoiceURI,
+    hasListenedArticle,
+    hasListenedSummary,
     play,
     playCustom,
     pause,

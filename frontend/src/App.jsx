@@ -7,6 +7,7 @@ import { normalizeArticleParagraphs } from './markdownUtils.js'
 import { ReadingControls } from './components/ReadingControls.jsx'
 import { ReadingDifficulty } from './components/ReadingDifficulty.jsx'
 import { SimplifyControls } from './components/SimplifyControls.jsx'
+import { TransformationReport } from './components/TransformationReport.jsx'
 import { useTextToSpeech } from './hooks/useTextToSpeech.js'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
@@ -49,6 +50,9 @@ function App() {
 
   // Stage 7: Native Text-to-Speech Hook
   const tts = useTextToSpeech(displayParagraphs)
+
+  // Stage 12: Transformation Report Tracking State
+  const [generatedSummary, setGeneratedSummary] = useState(null)
 
   // Backend connection health
   const [backendStatus, setBackendStatus] = useState('checking')
@@ -105,6 +109,7 @@ function App() {
       setActiveVersion('original')
       setActiveSimplifiedLevel('simple')
       setCachedSimplifications({})
+      setGeneratedSummary(null)
       setView('reader')
     } else {
       setErrorMessage(result.message)
@@ -118,6 +123,7 @@ function App() {
     setActiveVersion('original')
     setActiveSimplifiedLevel('simple')
     setCachedSimplifications({})
+    setGeneratedSummary(null)
     setView('input')
     setErrorMessage('')
     setTimeout(() => {
@@ -247,87 +253,104 @@ function App() {
       </a>
 
       {/* Top Banner / Navigation */}
-      <header className={`border-b transition-colors duration-200 ${headerThemeClass}`}>
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-tight">
-              ClearWeb
-            </span>
-            <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                theme === 'high-contrast'
-                  ? 'bg-[#ffff00] text-black'
-                  : theme === 'dark'
-                  ? 'bg-gray-800 text-blue-400'
-                  : theme === 'sepia'
-                  ? 'bg-[#e7dbca] text-amber-950'
-                  : 'bg-blue-100 text-blue-900'
-              }`}
-            >
-              Reader
-            </span>
+      <header className={`border-b transition-colors duration-200 sticky top-0 z-40 backdrop-blur-md ${headerThemeClass}`}>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Logo Emblem */}
+            <div className="w-8 h-8 rounded-lg bg-blue-800 text-white flex items-center justify-center font-black text-base shadow-xs select-none">
+              CW
+            </div>
+            <div>
+              <span className="text-lg sm:text-xl font-black tracking-tight leading-none block">
+                ClearWeb
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70 block -mt-0.5">
+                Accessible Reader
+              </span>
+            </div>
           </div>
 
-          {/* Backend Status indicator */}
-          <div className="flex items-center text-xs font-medium">
-            {backendStatus === 'checking' && (
-              <span className="opacity-75">Connecting to server...</span>
+          {/* Navigation & Status Header Indicators */}
+          <div className="flex items-center gap-2.5 text-xs">
+            {view === 'reader' && article && (
+              <div className="hidden sm:flex items-center gap-2 mr-2">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${secondaryBtnClass}`}>
+                  {article.word_count ? `${article.word_count.toLocaleString()} words` : ''}
+                  {readingTime && ` (~${readingTime} min)`}
+                </span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider border ${secondaryBtnClass}`}>
+                  {preferences.theme}
+                </span>
+              </div>
             )}
-            {backendStatus === 'connected' && (
-              <span
-                className={`flex items-center gap-1.5 ${
-                  theme === 'high-contrast'
-                    ? 'text-[#ffff00]'
-                    : theme === 'dark'
-                    ? 'text-emerald-400'
-                    : 'text-emerald-800'
-                }`}
-              >
+
+            {/* Backend Status indicator with pulse */}
+            <div className="flex items-center text-xs font-medium">
+              {backendStatus === 'checking' && (
+                <span className="opacity-75 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  Connecting...
+                </span>
+              )}
+              {backendStatus === 'connected' && (
                 <span
-                  className={`w-2 h-2 rounded-full inline-block ${
-                    theme === 'high-contrast' ? 'bg-[#ffff00]' : 'bg-emerald-600'
+                  className={`flex items-center gap-1.5 ${
+                    theme === 'high-contrast'
+                      ? 'text-[#ffff00]'
+                      : theme === 'dark'
+                      ? 'text-emerald-400'
+                      : 'text-emerald-700'
                   }`}
-                  aria-hidden="true"
-                />
-                Server ready
-              </span>
-            )}
-            {backendStatus === 'failed' && (
-              <span
-                className={`flex items-center gap-1.5 ${
-                  theme === 'high-contrast'
-                    ? 'text-[#ffff00] underline'
-                    : theme === 'dark'
-                    ? 'text-rose-400'
-                    : 'text-rose-800'
-                }`}
-                title={backendErrorMessage}
-              >
+                >
+                  <span className="relative flex h-2 w-2" aria-hidden="true">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  Server ready
+                </span>
+              )}
+              {backendStatus === 'failed' && (
                 <span
-                  className={`w-2 h-2 rounded-full inline-block ${
-                    theme === 'high-contrast' ? 'bg-[#ffff00]' : 'bg-rose-600'
+                  className={`flex items-center gap-1.5 ${
+                    theme === 'high-contrast'
+                      ? 'text-[#ffff00] underline'
+                      : theme === 'dark'
+                      ? 'text-rose-400'
+                      : 'text-rose-700'
                   }`}
-                  aria-hidden="true"
-                />
-                Server disconnected
-              </span>
-            )}
+                  title={backendErrorMessage}
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500" aria-hidden="true" />
+                  Server offline
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
       <main id="main-content" className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
-        {/* VIEW 1: URL Input Form */}
+        {/* VIEW 1: Modern SaaS Landing Page & URL Input */}
         {view === 'input' && (
-          <div className="max-w-2xl mx-auto py-6">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-3 tracking-tight">
-                Read any webpage cleanly
+          <div className="max-w-3xl mx-auto py-4 sm:py-8">
+            {/* Hero Announcement Badge */}
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 mb-5 shadow-2xs">
+                <span>✨ ClearWeb 2.0</span>
+                <span className="opacity-40">•</span>
+                <span>AI-Powered Accessible Web Reader</span>
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl font-black text-slate-900 mb-4 tracking-tight leading-tight">
+                Turn cluttered web pages into{' '}
+                <span className="bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                  calm, accessible prose
+                </span>.
               </h1>
-              <p className="text-lg text-slate-700 leading-relaxed">
-                Paste an article link below. ClearWeb removes clutter, ads, and
-                distractions, giving you a clean, accessible reading experience.
+
+              <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto mb-8">
+                Distraction-free reading with zero ads or tracking. Features dyslexic typography, high-contrast themes, Bionic Reading, text-to-speech, deterministic readability scoring, and on-demand Gemini AI summaries and simplification.
               </p>
             </div>
 
@@ -336,28 +359,31 @@ function App() {
               <div
                 role="alert"
                 aria-live="assertive"
-                className="mb-6 rounded-lg border-2 border-rose-300 bg-rose-50 p-4 text-rose-950 flex items-start gap-3 shadow-sm"
+                className="mb-6 rounded-xl border-2 border-rose-300 bg-rose-50 p-4 text-rose-950 flex items-start gap-3 shadow-sm"
               >
                 <span className="text-rose-700 font-bold text-lg select-none" aria-hidden="true">
-                  ⚠
+                  ⚠️
                 </span>
-                <div className="text-base flex-1">
-                  <p className="font-semibold mb-1">Could not extract article</p>
-                  <p className="text-rose-900 leading-normal">{errorMessage}</p>
+                <div className="text-sm flex-1">
+                  <p className="font-bold mb-0.5">Could not extract article</p>
+                  <p className="text-rose-900 leading-relaxed">{errorMessage}</p>
                 </div>
               </div>
             )}
 
-            {/* URL Submission Form */}
-            <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <div className="mb-5">
+            {/* URL Submission Form Card */}
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-6 shadow-sm space-y-4">
+              <div>
                 <label
                   htmlFor="url-input"
-                  className="block text-base font-semibold text-slate-900 mb-2"
+                  className="block text-sm font-bold text-slate-900 mb-1.5"
                 >
-                  Webpage Address (URL)
+                  Enter any webpage address
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
+                  <div className="absolute left-3.5 text-slate-400 select-none" aria-hidden="true">
+                    🌐
+                  </div>
                   <input
                     ref={urlInputRef}
                     id="url-input"
@@ -365,60 +391,122 @@ function App() {
                     type="url"
                     inputMode="url"
                     required
-                    placeholder="https://example.com/article"
+                    placeholder="https://en.wikipedia.org/wiki/..."
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     aria-describedby="url-hint"
-                    className="w-full rounded-lg border-2 border-slate-300 px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 bg-white focus:border-blue-700 focus:outline-2 focus:outline-offset-1 focus:outline-blue-700 transition"
+                    className="w-full rounded-xl border-2 border-slate-200 pl-10 pr-24 py-3 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 bg-slate-50/50 focus:bg-white focus:border-blue-700 focus:outline-2 focus:outline-offset-1 focus:outline-blue-700 transition"
                   />
+                  {url && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUrl('')
+                        setErrorMessage('')
+                        urlInputRef.current?.focus()
+                      }}
+                      className="absolute right-3 text-xs font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-md px-2 py-1 transition cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
-                <p id="url-hint" className="mt-2 text-sm text-slate-600">
-                  Tip: Works best with news stories, blog posts, essays, and Wikipedia articles.
-                </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Sample Preset URL Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-slate-500 font-medium select-none">Try an example:</span>
+                <button
+                  type="button"
+                  onClick={() => setUrl('https://en.wikipedia.org/wiki/Harry_Potter')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Harry Potter (Wikipedia)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUrl('https://en.wikipedia.org/wiki/Web_accessibility')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Web Accessibility (Wikipedia)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUrl('https://example.com')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                >
+                  Example.com
+                </button>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
+                <p id="url-hint" className="text-xs text-slate-500">
+                  SSRF-protected • Clean semantic extraction • Works with articles, blogs & wikis
+                </p>
+
                 <button
                   type="submit"
-                  className="w-full sm:w-auto rounded-lg bg-blue-800 px-6 py-3 text-base font-semibold text-white hover:bg-blue-900 active:bg-blue-950 focus:outline-3 focus:outline-offset-2 focus:outline-blue-700 shadow transition cursor-pointer"
+                  className="w-full sm:w-auto rounded-xl bg-slate-900 hover:bg-blue-900 active:bg-slate-950 px-6 py-3 text-sm sm:text-base font-bold text-white shadow-xs transition cursor-pointer flex items-center justify-center gap-2 focus:outline-2 focus:outline-offset-2 focus:outline-blue-700"
                 >
-                  Extract and Read
+                  <span>Extract and Read</span>
+                  <span aria-hidden="true">→</span>
                 </button>
-
-                {url && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUrl('')
-                      setErrorMessage('')
-                      urlInputRef.current?.focus()
-                    }}
-                    className="text-sm font-medium text-slate-700 hover:text-slate-900 underline focus:outline-2 focus:outline-blue-700 rounded px-2 py-1"
-                  >
-                    Clear address
-                  </button>
-                )}
               </div>
             </form>
 
-            {/* Help / Guidance Box */}
-            <section aria-label="About ClearWeb safety" className="mt-8 text-sm text-slate-600 space-y-2 border-t border-slate-200 pt-6">
-              <h2 className="font-semibold text-slate-800 text-sm">Protected & Safe Reading</h2>
-              <p>
-                ClearWeb verifies each link against private networks and SSRF vulnerabilities before fetching. Only public, safe webpage text is displayed.
-              </p>
-            </section>
+            {/* Feature Highlights Grid */}
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="flex items-center gap-2 font-bold text-sm text-slate-900 mb-1">
+                  <span>🎨</span>
+                  <span>Accessible Typography</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Four high-contrast and warm themes, dyslexia-friendly fonts, custom line spacing, and Bionic Reading word bolding.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="flex items-center gap-2 font-bold text-sm text-slate-900 mb-1">
+                  <span>📊</span>
+                  <span>Deterministic Readability</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Real-time Flesch Reading Ease and US Grade Level metrics computed locally with zero AI hallucinations or network calls.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="flex items-center gap-2 font-bold text-sm text-slate-900 mb-1">
+                  <span>🪄</span>
+                  <span>AI Simplification & Summaries</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Powered by Google Gemini to rewrite complex articles in Simple or Very Simple English while strictly preserving all facts, dates, and names.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200/80 bg-white p-4 shadow-2xs">
+                <div className="flex items-center gap-2 font-bold text-sm text-slate-900 mb-1">
+                  <span>🔊</span>
+                  <span>Synchronized Speech</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Paragraph-by-paragraph text-to-speech with visual sentence tracking, audio playback controls, and variable voice speeds.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* VIEW 2: Loading State */}
+        {/* VIEW 2: Modern Loading State */}
         {view === 'loading' && (
           <div
             role="status"
             aria-live="polite"
-            className="max-w-xl mx-auto py-16 text-center"
+            className="max-w-md mx-auto py-20 text-center"
           >
-            <div className="inline-flex items-center justify-center w-16 h-16 mb-6 rounded-full bg-blue-100 text-blue-800">
+            <div className="inline-flex items-center justify-center w-16 h-16 mb-6 rounded-2xl bg-blue-50 text-blue-800 border border-blue-200 shadow-sm">
               <svg
                 className="w-8 h-8 animate-spin"
                 xmlns="http://www.w3.org/2000/svg"
@@ -441,15 +529,15 @@ function App() {
                 />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
+            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">
               Extracting webpage content...
             </h2>
-            <p className="text-base text-slate-700 max-w-md mx-auto break-words mb-6">
-              Downloading and cleaning: <span className="font-mono text-sm bg-slate-100 px-2 py-1 rounded text-slate-800">{loadingUrl}</span>
+            <p className="text-xs text-slate-500 mb-4">
+              Verifying safety rules and formatting readable prose
             </p>
-            <p className="text-sm text-slate-600">
-              This usually takes 2 to 5 seconds.
-            </p>
+            <div className="inline-block font-mono text-xs bg-slate-100 px-3 py-1.5 rounded-lg text-slate-700 max-w-sm truncate border border-slate-200">
+              {loadingUrl}
+            </div>
           </div>
         )}
 
@@ -506,6 +594,20 @@ function App() {
               preferences={preferences}
               tts={tts}
               activeParagraphClass={activeParagraphClass}
+              onSummaryGenerated={(data) => setGeneratedSummary(data)}
+            />
+
+            {/* Stage 12 Dynamic Article Transformation Report */}
+            <TransformationReport
+              key={article.url || article.title || 'transformation-report'}
+              article={article}
+              activeVersion={activeVersion}
+              activeSimplifiedLevel={activeSimplifiedLevel}
+              cachedSimplifications={cachedSimplifications}
+              generatedSummary={generatedSummary}
+              listenedActivity={{ article: tts.hasListenedArticle, summary: tts.hasListenedSummary }}
+              preferences={preferences}
+              theme={preferences.theme}
             />
 
             {/* Article Container */}
@@ -660,9 +762,10 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
-        <div className="max-w-4xl mx-auto px-4 opacity-80">
-          ClearWeb Accessibility Reader — Stage 8
+      <footer className={`border-t py-6 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
+        <div className="max-w-5xl mx-auto px-4 opacity-80 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>ClearWeb 2.0 Accessibility Reader</span>
+          <span>Pure readability, deterministic analytics & AI simplification</span>
         </div>
       </footer>
     </div>
