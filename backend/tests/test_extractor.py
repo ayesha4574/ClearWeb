@@ -109,3 +109,25 @@ def test_overlong_title_is_shortened():
 def test_unknown_character_set_name_does_not_crash():
     result = extract_main_content(page(), encoding="totally-made-up-charset")
     assert "sentence" in result.text
+
+
+def test_table_and_markdown_structures_grouped():
+    html = """<html><body><article>
+    <h1>The Story Title</h1>
+    <p>This is a main paragraph with sufficient length to be extracted properly by the engine.</p>
+    <table>
+      <tr><th>Col A</th><th>Col B</th></tr>
+      <tr><td>Val 1</td><td>Val 2</td></tr>
+      <tr><td>Val 3</td><td>Val 4</td></tr>
+    </table>
+    <h2>Section Subheading</h2>
+    <p>Another normal paragraph following the table with important background information.</p>
+    <ul>
+      <li>First bullet item</li>
+      <li>Second bullet item</li>
+    </ul>
+    </article></body></html>""".encode()
+    result = extract_main_content(html)
+    assert any("| Col A |" in p and "| Val 1 |" in p for p in result.paragraphs)
+    assert any("Section Subheading" in p for p in result.paragraphs)
+    assert any("First bullet item" in p for p in result.paragraphs)

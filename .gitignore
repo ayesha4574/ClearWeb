@@ -223,6 +223,7 @@ __marimo__/
 # Secrets - never upload these
 .env
 .env.*
+!.env.example
 
 # Node
 node_modules/

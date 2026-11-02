@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { checkBackend, extractArticle } from './api.js'
+import { AISummary } from './components/AISummary.jsx'
 import { AudioPlayer } from './components/AudioPlayer.jsx'
-import { BionicParagraph } from './components/BionicText.jsx'
+import { MarkdownBlock } from './components/MarkdownBlock.jsx'
+import { normalizeArticleParagraphs } from './markdownUtils.js'
 import { ReadingControls } from './components/ReadingControls.jsx'
 import { useTextToSpeech } from './hooks/useTextToSpeech.js'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
@@ -25,8 +27,13 @@ function App() {
   })
   const [isControlsOpen, setIsControlsOpen] = useState(false)
 
+  // Normalize article paragraphs into coherent blocks (tables, lists, headings, paragraphs)
+  const displayParagraphs = useMemo(() => {
+    return normalizeArticleParagraphs(article?.paragraphs || [])
+  }, [article?.paragraphs])
+
   // Stage 7: Native Text-to-Speech Hook
-  const tts = useTextToSpeech(article?.paragraphs || [])
+  const tts = useTextToSpeech(displayParagraphs)
 
   // Backend connection health
   const [backendStatus, setBackendStatus] = useState('checking')
@@ -440,8 +447,18 @@ function App() {
             {/* Stage 7 Web Speech API Audio Player */}
             <AudioPlayer
               tts={tts}
-              totalParagraphs={article.paragraphs?.length || 0}
+              totalParagraphs={displayParagraphs.length}
               theme={preferences.theme}
+            />
+
+            {/* Stage 8 Gemini AI Summaries & Key Points */}
+            <AISummary
+              key={article.url || article.title || 'summary'}
+              paragraphs={article.paragraphs}
+              title={article.title}
+              preferences={preferences}
+              tts={tts}
+              activeParagraphClass={activeParagraphClass}
             />
 
             {/* Article Container */}
@@ -524,16 +541,17 @@ function App() {
                 )}
               </header>
 
-              {/* Article Paragraphs with Dynamic Typography & Bionic Reading */}
+              {/* Article Paragraphs with Dynamic Typography, Tables, Headings & Bionic Reading */}
               <div
                 className={`space-y-6 font-normal ${bodyTextColorClass} ${fontSizeClass} ${lineHeightClass} ${fontFamilyClass}`}
               >
-                {article.paragraphs && article.paragraphs.length > 0 ? (
-                  article.paragraphs.map((para, index) => (
-                    <BionicParagraph
+                {displayParagraphs && displayParagraphs.length > 0 ? (
+                  displayParagraphs.map((para, index) => (
+                    <MarkdownBlock
                       key={index}
                       text={para}
                       enabled={preferences.bionicReading}
+                      theme={preferences.theme}
                       isActiveSpeaking={tts.playbackState !== 'stopped' && tts.currentParagraphIndex === index}
                       activeClass={activeParagraphClass}
                       onClick={() => tts.play(index)}
@@ -563,7 +581,7 @@ function App() {
       {/* Footer */}
       <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
         <div className="max-w-4xl mx-auto px-4 opacity-80">
-          ClearWeb Accessibility Reader — Stage 7
+          ClearWeb Accessibility Reader — Stage 8
         </div>
       </footer>
     </div>

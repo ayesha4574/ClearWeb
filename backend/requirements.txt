@@ -5,3 +5,4 @@ httpx2
 trafilatura
 urllib3
 certifi
+python-dotenv

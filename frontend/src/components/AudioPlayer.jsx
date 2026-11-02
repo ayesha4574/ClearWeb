@@ -81,10 +81,12 @@ export function AudioPlayer({
     'high-contrast': 'bg-black border-2 border-[#ffff00] text-[#ffff00] focus:outline-[#00ffff]',
   }[theme]
 
+  const isSummary = tts.source === 'summary'
+  const activeTotal = isSummary ? (tts.activeItemsCount || 1) : totalParagraphs
   const currentParaNumber = currentParagraphIndex >= 0 ? currentParagraphIndex + 1 : 0
   const progressPercent =
-    totalParagraphs > 0 && currentParagraphIndex >= 0
-      ? Math.round((currentParaNumber / totalParagraphs) * 100)
+    activeTotal > 0 && currentParagraphIndex >= 0
+      ? Math.round((currentParaNumber / activeTotal) * 100)
       : 0
 
   return (
@@ -104,13 +106,17 @@ export function AudioPlayer({
             {playbackState === 'playing' && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-800 dark:text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" aria-hidden="true" />
-                Reading paragraph {currentParaNumber} of {totalParagraphs} ({progressPercent}%)
+                {isSummary
+                  ? `Reading AI Summary item ${currentParaNumber} of ${activeTotal} (${progressPercent}%)`
+                  : `Reading paragraph ${currentParaNumber} of ${totalParagraphs} (${progressPercent}%)`}
               </span>
             )}
             {playbackState === 'paused' && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-600" aria-hidden="true" />
-                Paused at paragraph {currentParaNumber} of {totalParagraphs}
+                {isSummary
+                  ? `Paused at AI Summary item ${currentParaNumber} of ${activeTotal}`
+                  : `Paused at paragraph ${currentParaNumber} of ${totalParagraphs}`}
               </span>
             )}
             {playbackState === 'stopped' && (

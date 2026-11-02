@@ -94,3 +94,63 @@ export async function extractArticle(url) {
     clearTimeout(timer)
   }
 }
+
+// Stage 8: Request an AI summary and key takeaways from Gemini through backend.
+export async function summarizeArticle(paragraphs, title = '', length = 'medium') {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 35000)
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/summarize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        paragraphs,
+        title: title || undefined,
+        length,
+      }),
+      signal: controller.signal,
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      let code = 'error'
+      let message = 'Failed to generate AI summary.'
+
+      if (data && data.detail) {
+        if (typeof data.detail === 'object') {
+          code = data.detail.code || 'error'
+          message = data.detail.message || message
+        } else if (typeof data.detail === 'string') {
+          message = data.detail
+        }
+      }
+
+      return { ok: false, code, message }
+    }
+
+    if (!data || !data.ok) {
+      return { ok: false, code: 'invalid', message: 'Received an invalid summary response.' }
+    }
+
+    return { ok: true, data }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return {
+        ok: false,
+        code: 'timeout',
+        message: 'The AI summarization request timed out. Please try again.',
+      }
+    }
+    return {
+      ok: false,
+      code: 'network',
+      message: 'Could not connect to the ClearWeb backend to generate summary.',
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}

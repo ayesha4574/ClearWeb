@@ -65,6 +65,42 @@ def _to_text(body, encoding):
     return body  # let Trafilatura detect the character set itself
 
 
+def _group_paragraphs(text: str) -> list[str]:
+    """Groups consecutive markdown table rows and list items into coherent blocks."""
+    raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
+    blocks = []
+    current_table = []
+    current_list = []
+
+    def flush():
+        nonlocal current_table, current_list
+        if current_table:
+            blocks.append("\n".join(current_table))
+            current_table = []
+        if current_list:
+            blocks.append("\n".join(current_list))
+            current_list = []
+
+    for line in raw_lines:
+        is_table_row = line.startswith("|") and line.endswith("|")
+        is_list_item = bool(line.startswith(("- ", "* ", "• ")) or re.match(r"^\d+\.\s", line))
+
+        if is_table_row:
+            if current_list:
+                flush()
+            current_table.append(line)
+        elif is_list_item:
+            if current_table:
+                flush()
+            current_list.append(line)
+        else:
+            flush()
+            blocks.append(line)
+
+    flush()
+    return blocks
+
+
 def extract_main_content(body, encoding=""):
     """Returns ExtractedPage, or raises FetchError("no_content") if there is no article."""
     try:
@@ -72,6 +108,7 @@ def extract_main_content(body, encoding=""):
             _to_text(body, encoding),
             with_metadata=True,
             include_comments=False,
+            include_formatting=True,
             date_extraction_params=DATE_SETTINGS,
             # NOTE: we deliberately do NOT pass the page's web address. With it,
             # Trafilatura may read a "date" out of the address itself.
@@ -92,7 +129,7 @@ def extract_main_content(body, encoding=""):
     if truncated:
         text = text[:MAX_TEXT_CHARS]
 
-    paragraphs = [line.strip() for line in text.split("\n") if line.strip()]
+    paragraphs = _group_paragraphs(text)
     return ExtractedPage(
         title=_clean_field(document.title),
         author=_clean_field(document.author),
