@@ -23,3 +23,18 @@ def test_unknown_website_is_not_allowed():
         "/api/health", headers={"Origin": "http://evil.example.com"}
     )
     assert "access-control-allow-origin" not in response.headers
+
+
+def test_preflight_options_for_extract_allowed():
+    response = client.options(
+        "/api/extract",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "POST" in response.headers["access-control-allow-methods"]
+
