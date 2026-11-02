@@ -1,7 +1,12 @@
 // This is the ONLY file that talks to our backend.
 // Every other file asks this file to do it. That keeps things tidy and safe.
 
-const BACKEND_URL = 'http://localhost:8000'
+// In production (e.g. Vercel), read backend URL from Vite environment variable.
+// In local development, fall back to http://localhost:8000.
+const BACKEND_URL = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) ||
+  'http://localhost:8000'
+).replace(/\/+$/, '')
 
 // Asks the backend: "are you alive?"
 // Always returns an object like { ok: true } or { ok: false, message: "..." }
