@@ -47,15 +47,26 @@ function formatBionic(text) {
 
 /**
  * Memoized paragraph component for top performance on long articles.
+ * Supports active speech reading highlight and jump-to-speak on click.
  */
 export const BionicParagraph = React.memo(function BionicParagraph({
   text,
   enabled,
-  className,
+  className = '',
+  isActiveSpeaking = false,
+  activeClass = '',
+  onClick,
 }) {
-  if (!enabled || !text) {
-    return <p className={className}>{text}</p>
-  }
+  const combinedClass = `${className} ${isActiveSpeaking ? activeClass : ''}`.trim()
+  const content = enabled && text ? formatBionic(text) : text
 
-  return <p className={className}>{formatBionic(text)}</p>
+  return (
+    <p
+      className={combinedClass}
+      aria-current={isActiveSpeaking ? 'true' : undefined}
+      onClick={onClick}
+    >
+      {content}
+    </p>
+  )
 })

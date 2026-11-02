@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { checkBackend, extractArticle } from './api.js'
+import { AudioPlayer } from './components/AudioPlayer.jsx'
 import { BionicParagraph } from './components/BionicText.jsx'
 import { ReadingControls } from './components/ReadingControls.jsx'
+import { useTextToSpeech } from './hooks/useTextToSpeech.js'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
 function App() {
@@ -22,6 +24,9 @@ function App() {
     }
   })
   const [isControlsOpen, setIsControlsOpen] = useState(false)
+
+  // Stage 7: Native Text-to-Speech Hook
+  const tts = useTextToSpeech(article?.paragraphs || [])
 
   // Backend connection health
   const [backendStatus, setBackendStatus] = useState('checking')
@@ -66,6 +71,7 @@ function App() {
       return
     }
 
+    tts.stop()
     setErrorMessage('')
     setLoadingUrl(trimmed)
     setView('loading')
@@ -83,6 +89,7 @@ function App() {
 
   // Return to the URL input view
   function handleBackToInput() {
+    tts.stop()
     setView('input')
     setErrorMessage('')
     setTimeout(() => {
@@ -165,6 +172,13 @@ function App() {
     sepia: 'bg-amber-900 hover:bg-amber-950 text-white focus:outline-amber-800 shadow',
     dark: 'bg-blue-600 hover:bg-blue-500 text-white focus:outline-blue-400 shadow',
     'high-contrast': 'bg-[#ffff00] text-black border-2 border-[#ffff00] hover:bg-white hover:text-black focus:outline-[#00ffff]',
+  }[preferences.theme]
+
+  const activeParagraphClass = {
+    light: 'border-l-4 border-blue-700 bg-blue-50/70 pl-3.5 py-1 -ml-3.5 rounded-r-md transition-colors',
+    sepia: 'border-l-4 border-amber-800 bg-amber-100/50 pl-3.5 py-1 -ml-3.5 rounded-r-md transition-colors',
+    dark: 'border-l-4 border-blue-400 bg-blue-950/50 pl-3.5 py-1 -ml-3.5 rounded-r-md transition-colors',
+    'high-contrast': 'border-l-4 border-[#ffff00] bg-neutral-900 pl-3.5 py-1 -ml-3.5 rounded-r-md transition-colors',
   }[preferences.theme]
 
   // 5. Typography customization mappings
@@ -423,6 +437,13 @@ function App() {
               onToggleOpen={() => setIsControlsOpen((prev) => !prev)}
             />
 
+            {/* Stage 7 Web Speech API Audio Player */}
+            <AudioPlayer
+              tts={tts}
+              totalParagraphs={article.paragraphs?.length || 0}
+              theme={preferences.theme}
+            />
+
             {/* Article Container */}
             <article className={`rounded-xl p-6 sm:p-10 transition-colors duration-200 ${articleCardThemeClass}`}>
               {/* Top Back Navigation & Original Link */}
@@ -513,6 +534,10 @@ function App() {
                       key={index}
                       text={para}
                       enabled={preferences.bionicReading}
+                      isActiveSpeaking={tts.playbackState !== 'stopped' && tts.currentParagraphIndex === index}
+                      activeClass={activeParagraphClass}
+                      onClick={() => tts.play(index)}
+                      className="cursor-pointer hover:opacity-95 transition-all"
                     />
                   ))
                 ) : (
@@ -538,7 +563,7 @@ function App() {
       {/* Footer */}
       <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
         <div className="max-w-4xl mx-auto px-4 opacity-80">
-          ClearWeb Accessibility Reader — Stage 6
+          ClearWeb Accessibility Reader — Stage 7
         </div>
       </footer>
     </div>
