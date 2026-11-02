@@ -5,6 +5,7 @@ import { AudioPlayer } from './components/AudioPlayer.jsx'
 import { MarkdownBlock } from './components/MarkdownBlock.jsx'
 import { normalizeArticleParagraphs } from './markdownUtils.js'
 import { ReadingControls } from './components/ReadingControls.jsx'
+import { ReadingDifficulty } from './components/ReadingDifficulty.jsx'
 import { useTextToSpeech } from './hooks/useTextToSpeech.js'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
@@ -448,6 +449,13 @@ function App() {
             <AudioPlayer
               tts={tts}
               totalParagraphs={displayParagraphs.length}
+              theme={preferences.theme}
+            />
+
+            {/* Stage 10 Reading Difficulty Indicator */}
+            <ReadingDifficulty
+              paragraphs={article.paragraphs}
+              text={article.text}
               theme={preferences.theme}
             />
 
