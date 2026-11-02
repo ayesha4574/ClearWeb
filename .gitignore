@@ -230,3 +230,10 @@ dist/
 
 # Mac
 .DS_Store
+
+# Python (Stage 1)
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
