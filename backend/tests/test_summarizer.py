@@ -250,3 +250,141 @@ def test_summarize_service_unavailable_503(monkeypatch):
     detail = response.json()["detail"]
     assert detail["code"] == "service_unavailable"
     assert "high demand spikes" in detail["message"]
+
+
+def test_summarize_transient_503_retry_success(monkeypatch):
+  """Verify that a transient 503 error is retried and succeeds on second attempt."""
+  monkeypatch.setenv("GEMINI_API_KEY", "secret-test-key-999")
+
+  mock_503 = MagicMock()
+  mock_503.status_code = 503
+  mock_503.json.return_value = {"error": {"message": "The model is overloaded. Please try again later."}}
+
+  mock_200 = MagicMock()
+  mock_200.status_code = 200
+  mock_200.json.return_value = {
+    "candidates": [{
+      "content": {
+        "parts": [{
+          "text": json.dumps({
+            "summary": "Recovered summary after retry.",
+            "key_takeaways": ["Key point 1"],
+          })
+        }]
+      }
+    }]
+  }
+
+  with patch(
+    "app.services.summarizer._send_gemini_request",
+    side_effect=[mock_503, mock_200],
+  ) as mock_send:
+    response = client.post(
+      "/api/summarize",
+      json={"paragraphs": SAMPLE_PARAGRAPHS, "length": "short"},
+    )
+
+  assert response.status_code == 200
+  assert response.json()["summary"] == "Recovered summary after retry."
+  assert mock_send.call_count == 2
+
+
+def test_summarize_transient_503_exhausted_retries(monkeypatch, caplog):
+  """Verify that transient 503 errors retry max 2 times (3 total attempts), fail, and log safely."""
+  monkeypatch.setenv("GEMINI_API_KEY", "secret-test-key-999")
+
+  mock_503 = MagicMock()
+  mock_503.status_code = 503
+  mock_503.json.return_value = {"error": {"message": "High demand spike in region"}}
+
+  with patch(
+    "app.services.summarizer._send_gemini_request",
+    return_value=mock_503,
+  ) as mock_send:
+    with caplog.at_level("WARNING"):
+      response = client.post(
+        "/api/summarize",
+        json={"paragraphs": SAMPLE_PARAGRAPHS, "length": "short"},
+      )
+
+  assert response.status_code == 502
+  detail = response.json()["detail"]
+  assert detail["code"] == "service_unavailable"
+  assert "high demand spikes" in detail["message"].lower()
+  # Total calls must be exactly 3 (1 initial + 2 retries)
+  assert mock_send.call_count == 3
+
+  # Verify logs contain original error details
+  assert "503" in caplog.text
+  assert "High demand spike" in caplog.text
+  assert "persisted after 2 retries" in caplog.text
+  # Verify API key is NEVER leaked in logs
+  assert "secret-test-key-999" not in caplog.text
+  assert "?key=[REDACTED]" in caplog.text
+
+
+def test_summarize_non_transient_401_no_retry(monkeypatch):
+  """Verify that authentication errors (401) fail immediately without retrying."""
+  monkeypatch.setenv("GEMINI_API_KEY", "invalid-key")
+
+  mock_401 = MagicMock()
+  mock_401.status_code = 401
+  mock_401.json.return_value = {"error": {"message": "API key not valid"}}
+
+  with patch(
+    "app.services.summarizer._send_gemini_request",
+    return_value=mock_401,
+  ) as mock_send:
+    response = client.post(
+      "/api/summarize",
+      json={"paragraphs": SAMPLE_PARAGRAPHS, "length": "short"},
+    )
+
+  assert response.status_code == 401
+  assert response.json()["detail"]["code"] == "invalid_api_key"
+  # Exactly 1 call: no retry attempted
+  assert mock_send.call_count == 1
+
+
+def test_summarize_non_transient_429_no_retry(monkeypatch):
+  """Verify that rate limit errors (429) fail immediately without retrying."""
+  monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+  mock_429 = MagicMock()
+  mock_429.status_code = 429
+  mock_429.json.return_value = {"error": {"message": "Quota exceeded"}}
+
+  with patch(
+    "app.services.summarizer._send_gemini_request",
+    return_value=mock_429,
+  ) as mock_send:
+    response = client.post(
+      "/api/summarize",
+      json={"paragraphs": SAMPLE_PARAGRAPHS, "length": "short"},
+    )
+
+  assert response.status_code == 429
+  assert response.json()["detail"]["code"] == "rate_limited"
+  # Exactly 1 call: no retry attempted
+  assert mock_send.call_count == 1
+
+
+def test_summarize_network_error_retries_and_exhausts(monkeypatch, caplog):
+  """Verify that network disconnect errors retry up to 2 times before failing with 502."""
+  monkeypatch.setenv("GEMINI_API_KEY", "secret-key-xyz")
+
+  with patch(
+    "app.services.summarizer._send_gemini_request",
+    side_effect=httpx2.RequestError("Connection reset by peer"),
+  ) as mock_send:
+    with caplog.at_level("WARNING"):
+      response = client.post(
+        "/api/summarize",
+        json={"paragraphs": SAMPLE_PARAGRAPHS, "length": "short"},
+      )
+
+  assert response.status_code == 502
+  assert response.json()["detail"]["code"] == "network_error"
+  assert mock_send.call_count == 3
+  assert "Connection reset by peer" in caplog.text
+  assert "secret-key-xyz" not in caplog.text

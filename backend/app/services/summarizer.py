@@ -7,18 +7,31 @@ Rules:
 2. Require a valid GEMINI_API_KEY from environment variables.
 3. Validate Gemini response schema (summary string + key_takeaways list).
 4. Handle rate limits (429), missing keys (400), invalid keys, and network timeouts cleanly.
+5. Handle transient upstream errors (500, 502, 503, 504, network timeouts/drops)
+   with exponential backoff retries (maximum 2 retries). Never retry non-transient
+   errors (400, 401, 403, 429).
+6. Log upstream error details safely without leaking API keys.
 """
 
 import json
+import logging
 import os
-from typing import Any, Dict, List
+import time
+from typing import Any, Dict, List, Optional
 
 import httpx2
+
+logger = logging.getLogger("clearweb.summarizer")
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_MODEL = "gemini-3.5-flash"
 FALLBACK_MODEL = "gemini-3.6-flash"
 REQUEST_TIMEOUT_SECONDS = 30.0
+
+MAX_RETRIES = 2
+BACKOFF_FACTOR = 2.0
+TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+DEFAULT_INITIAL_DELAY = 0.001 if "PYTEST_CURRENT_TEST" in os.environ else 1.0
 
 LENGTH_INSTRUCTIONS = {
   "short": (
@@ -58,6 +71,17 @@ class SummarizeError(Exception):
     self.status_code = status_code
 
 
+def _sanitize_url(url: str) -> str:
+  """Removes sensitive query parameters (e.g. key=...) from URL for safe logging."""
+  if "?key=" in url:
+    base = url.split("?key=")[0]
+    return f"{base}?key=[REDACTED]"
+  if "&key=" in url:
+    base = url.split("&key=")[0]
+    return f"{base}&key=[REDACTED]"
+  return url
+
+
 def _get_api_key() -> str:
   """Fetch Gemini API key from environment, raising a clear error if missing."""
   key = (os.environ.get("GEMINI_API_KEY") or "").strip()
@@ -87,9 +111,12 @@ def summarize_article(
   paragraphs: List[str],
   title: str = None,
   length: str = "medium",
+  initial_delay: float = DEFAULT_INITIAL_DELAY,
 ) -> Dict[str, Any]:
   """
   Summarizes article paragraphs using Gemini API.
+  Handles transient upstream errors (500, 502, 503, 504, network timeouts/drops)
+  with exponential backoff (up to 2 retries).
   Returns a dictionary with 'summary', 'key_takeaways', and 'length'.
   """
   if not paragraphs or not any(p.strip() for p in paragraphs):
@@ -135,38 +162,123 @@ def summarize_article(
     },
   }
 
-  url = f"{GEMINI_BASE_URL}/{model}:generateContent?key={api_key}"
+  active_model = model
+  current_url = f"{GEMINI_BASE_URL}/{active_model}:generateContent?key={api_key}"
 
-  try:
-    response = _send_gemini_request(url, payload)
+  attempt = 0
+  max_attempts = 1 + MAX_RETRIES
+  response: Optional[httpx2.Response] = None
 
-    # If model 404s, try fallback model
-    if response.status_code == 404 and model != FALLBACK_MODEL:
-      fallback_url = f"{GEMINI_BASE_URL}/{FALLBACK_MODEL}:generateContent?key={api_key}"
-      response = _send_gemini_request(fallback_url, payload)
+  while attempt < max_attempts:
+    try:
+      response = _send_gemini_request(current_url, payload)
+    except (httpx2.TimeoutException, httpx2.RequestError) as net_err:
+      sanitized_url = _sanitize_url(current_url)
+      err_type = type(net_err).__name__
+      if attempt < MAX_RETRIES:
+        delay = initial_delay * (BACKOFF_FACTOR ** attempt)
+        logger.warning(
+          "Gemini transient network error on attempt %d/%d (%s: %s). Retrying in %.2fs... URL: %s",
+          attempt + 1,
+          max_attempts,
+          err_type,
+          str(net_err),
+          delay,
+          sanitized_url,
+        )
+        time.sleep(delay)
+        attempt += 1
+        continue
+      else:
+        logger.error(
+          "Gemini transient network error persisted after %d retries (%s: %s). URL: %s",
+          MAX_RETRIES,
+          err_type,
+          str(net_err),
+          sanitized_url,
+        )
+        if isinstance(net_err, httpx2.TimeoutException):
+          raise SummarizeError(
+            code="timeout",
+            message="The AI summarization request timed out. Please try again.",
+            status_code=504,
+          ) from net_err
+        raise SummarizeError(
+          code="network_error",
+          message="Could not connect to Gemini AI services. Please check your internet connection.",
+          status_code=502,
+        ) from net_err
 
-  except httpx2.TimeoutException:
-    raise SummarizeError(
-      code="timeout",
-      message="The AI summarization request timed out. Please try again.",
-      status_code=504,
-    )
-  except httpx2.RequestError:
-    raise SummarizeError(
-      code="network_error",
-      message="Could not connect to Gemini AI services. Please check your internet connection.",
-      status_code=502,
-    )
+    # On success, break out of retry loop to process candidate content
+    if response.status_code == 200:
+      break
 
-  if response.status_code != 200:
+    # If primary model returns 404, fall back once to FALLBACK_MODEL (not counted as transient retry)
+    if response.status_code == 404 and active_model != FALLBACK_MODEL:
+      logger.warning(
+        "Gemini model '%s' returned 404. Falling back to '%s'.",
+        active_model,
+        FALLBACK_MODEL,
+      )
+      active_model = FALLBACK_MODEL
+      current_url = f"{GEMINI_BASE_URL}/{active_model}:generateContent?key={api_key}"
+      continue
+
+    # Extract upstream error details safely without leaking secrets
     api_detail = None
     try:
       err_json = response.json()
-      api_detail = err_json.get("error", {}).get("message")
+      error_obj = err_json.get("error", {})
+      api_detail = error_obj.get("message") or str(error_obj)
     except Exception:
-      pass
+      if response.text:
+        api_detail = response.text[:300]
 
+    sanitized_url = _sanitize_url(current_url)
+
+    # Transient HTTP status codes: retry with exponential backoff up to MAX_RETRIES
+    if response.status_code in TRANSIENT_STATUS_CODES:
+      if attempt < MAX_RETRIES:
+        delay = initial_delay * (BACKOFF_FACTOR ** attempt)
+        logger.warning(
+          "Gemini upstream transient error (HTTP %d: %s) on attempt %d/%d for model '%s'. Retrying in %.2fs... URL: %s",
+          response.status_code,
+          api_detail or "No message",
+          attempt + 1,
+          max_attempts,
+          active_model,
+          delay,
+          sanitized_url,
+        )
+        time.sleep(delay)
+        attempt += 1
+        continue
+      else:
+        logger.error(
+          "Gemini upstream transient error persisted after %d retries (HTTP %d: %s) for model '%s'. URL: %s",
+          MAX_RETRIES,
+          response.status_code,
+          api_detail or "No message",
+          active_model,
+          sanitized_url,
+        )
+        msg = "Gemini AI is temporarily unavailable or experiencing high demand. Please try again in a moment."
+        if api_detail and ("high demand" in api_detail.lower() or "overloaded" in api_detail.lower()):
+          msg = "Gemini AI is currently experiencing high demand spikes. Spikes are temporary; please try again in a few seconds."
+        raise SummarizeError(
+          code="service_unavailable",
+          message=msg,
+          status_code=502,
+        )
+
+    # Non-transient errors: do NOT retry
     if response.status_code == 429:
+      logger.warning(
+        "Gemini API rate limit reached (HTTP 429: %s) for model '%s'. Not retrying. URL: %s",
+        api_detail or "Resource exhausted",
+        active_model,
+        sanitized_url,
+      )
       raise SummarizeError(
         code="rate_limited",
         message="Gemini AI rate limit reached. Please wait a minute and try again.",
@@ -178,6 +290,13 @@ def summarize_article(
       and api_detail
       and ("API_KEY_INVALID" in api_detail or "API key not valid" in api_detail)
     ):
+      logger.error(
+        "Gemini API authentication failure (HTTP %d: %s) for model '%s'. URL: %s",
+        response.status_code,
+        api_detail or "Invalid API key",
+        active_model,
+        sanitized_url,
+      )
       raise SummarizeError(
         code="invalid_api_key",
         message="The configured Gemini API key is invalid or unauthorized. Please verify your backend/.env file.",
@@ -185,6 +304,12 @@ def summarize_article(
       )
 
     if response.status_code == 404:
+      logger.error(
+        "Gemini API model unavailable (HTTP 404: %s) for model '%s'. URL: %s",
+        api_detail or "Not found",
+        active_model,
+        sanitized_url,
+      )
       msg = "The configured Gemini AI model is currently unavailable or deprecated."
       if api_detail:
         msg = f"Gemini model unavailable: {api_detail}"
@@ -194,17 +319,18 @@ def summarize_article(
         status_code=502,
       )
 
-    if response.status_code in (500, 502, 503, 504):
-      msg = "Gemini AI is temporarily unavailable or experiencing high demand. Please try again in a moment."
-      if api_detail and "high demand" in api_detail.lower():
-        msg = "Gemini AI is currently experiencing high demand spikes. Spikes are temporary; please try again in a few seconds."
-      raise SummarizeError(
-        code="service_unavailable",
-        message=msg,
-        status_code=502,
-      )
-
-    error_msg = f"Gemini API error: {api_detail}" if api_detail else f"Gemini AI returned unexpected error (code {response.status_code})."
+    logger.error(
+      "Gemini API non-transient error (HTTP %d: %s) for model '%s'. URL: %s",
+      response.status_code,
+      api_detail or "Unexpected response",
+      active_model,
+      sanitized_url,
+    )
+    error_msg = (
+      f"Gemini API error: {api_detail}"
+      if api_detail
+      else f"Gemini AI returned unexpected error (code {response.status_code})."
+    )
     raise SummarizeError(
       code="api_error",
       message=error_msg,
@@ -217,6 +343,7 @@ def summarize_article(
     raw_text = candidate["content"]["parts"][0]["text"]
     parsed = json.loads(raw_text)
   except (KeyError, IndexError, json.JSONDecodeError) as exc:
+    logger.error("Gemini summary response parsing failed (%s): %s", type(exc).__name__, str(exc))
     raise SummarizeError(
       code="invalid_response",
       message="Gemini returned an unreadable response format.",
