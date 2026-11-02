@@ -6,6 +6,7 @@ import { MarkdownBlock } from './components/MarkdownBlock.jsx'
 import { normalizeArticleParagraphs } from './markdownUtils.js'
 import { ReadingControls } from './components/ReadingControls.jsx'
 import { ReadingDifficulty } from './components/ReadingDifficulty.jsx'
+import { SimplifyControls } from './components/SimplifyControls.jsx'
 import { useTextToSpeech } from './hooks/useTextToSpeech.js'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
@@ -28,10 +29,23 @@ function App() {
   })
   const [isControlsOpen, setIsControlsOpen] = useState(false)
 
-  // Normalize article paragraphs into coherent blocks (tables, lists, headings, paragraphs)
+  // Stage 11: Text Simplification State
+  const [activeVersion, setActiveVersion] = useState('original') // 'original' | 'simplified'
+  const [activeSimplifiedLevel, setActiveSimplifiedLevel] = useState('simple') // 'simple' | 'very_simple'
+  const [cachedSimplifications, setCachedSimplifications] = useState({})
+
+  // Active paragraphs for rendering, TTS, and readability analysis
+  const activeParagraphs = useMemo(() => {
+    if (activeVersion === 'simplified' && cachedSimplifications[activeSimplifiedLevel]?.simplified_paragraphs) {
+      return cachedSimplifications[activeSimplifiedLevel].simplified_paragraphs
+    }
+    return article?.paragraphs || []
+  }, [activeVersion, activeSimplifiedLevel, cachedSimplifications, article?.paragraphs])
+
+  // Normalize active article paragraphs into coherent blocks (tables, lists, headings, paragraphs)
   const displayParagraphs = useMemo(() => {
-    return normalizeArticleParagraphs(article?.paragraphs || [])
-  }, [article?.paragraphs])
+    return normalizeArticleParagraphs(activeParagraphs)
+  }, [activeParagraphs])
 
   // Stage 7: Native Text-to-Speech Hook
   const tts = useTextToSpeech(displayParagraphs)
@@ -88,6 +102,9 @@ function App() {
 
     if (result.ok) {
       setArticle(result.data)
+      setActiveVersion('original')
+      setActiveSimplifiedLevel('simple')
+      setCachedSimplifications({})
       setView('reader')
     } else {
       setErrorMessage(result.message)
@@ -98,6 +115,9 @@ function App() {
   // Return to the URL input view
   function handleBackToInput() {
     tts.stop()
+    setActiveVersion('original')
+    setActiveSimplifiedLevel('simple')
+    setCachedSimplifications({})
     setView('input')
     setErrorMessage('')
     setTimeout(() => {
@@ -454,9 +474,28 @@ function App() {
 
             {/* Stage 10 Reading Difficulty Indicator */}
             <ReadingDifficulty
-              paragraphs={article.paragraphs}
-              text={article.text}
+              paragraphs={activeParagraphs}
+              text={activeVersion === 'simplified' ? (cachedSimplifications[activeSimplifiedLevel]?.simplified_text || '') : article.text}
               theme={preferences.theme}
+            />
+
+            {/* Stage 11 AI Text Simplification */}
+            <SimplifyControls
+              key={article.url || article.title || 'simplifier'}
+              paragraphs={article.paragraphs}
+              title={article.title}
+              theme={preferences.theme}
+              activeVersion={activeVersion}
+              onSwitchVersion={(version, level) => {
+                tts.stop()
+                if (level) setActiveSimplifiedLevel(level)
+                setActiveVersion(version)
+              }}
+              cachedSimplifications={cachedSimplifications}
+              onSaveSimplification={(level, data) => {
+                setCachedSimplifications((prev) => ({ ...prev, [level]: data }))
+              }}
+              onStopSpeaking={() => tts.stop()}
             />
 
             {/* Stage 8 Gemini AI Summaries & Key Points */}
@@ -548,6 +587,40 @@ function App() {
                   </div>
                 )}
               </header>
+
+              {/* Simplified version active notice */}
+              {activeVersion === 'simplified' && (
+                <div
+                  role="status"
+                  aria-label="Simplified version notice"
+                  className={`mb-6 rounded-lg border p-3.5 text-xs sm:text-sm flex flex-wrap items-center justify-between gap-3 ${
+                    preferences.theme === 'high-contrast'
+                      ? 'bg-neutral-900 border-2 border-[#ffff00] text-[#ffff00]'
+                      : preferences.theme === 'dark'
+                      ? 'bg-blue-950/40 border-blue-800 text-blue-200'
+                      : preferences.theme === 'sepia'
+                      ? 'bg-[#f4ebd9] border-amber-800/30 text-stone-900'
+                      : 'bg-blue-50/80 border-blue-200 text-blue-950'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base select-none" aria-hidden="true">✨</span>
+                    <span>
+                      <strong>Simplified Article ({activeSimplifiedLevel === 'very_simple' ? 'Very Simple' : 'Simple'}):</strong> Rewritten for easier reading. All original facts, names, dates, and numbers preserved.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      tts.stop()
+                      setActiveVersion('original')
+                    }}
+                    className="font-bold underline cursor-pointer hover:opacity-80"
+                  >
+                    View original article
+                  </button>
+                </div>
+              )}
 
               {/* Article Paragraphs with Dynamic Typography, Tables, Headings & Bionic Reading */}
               <div

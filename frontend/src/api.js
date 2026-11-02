@@ -154,3 +154,64 @@ export async function summarizeArticle(paragraphs, title = '', length = 'medium'
     clearTimeout(timer)
   }
 }
+
+// Stage 11: Request AI text simplification from Gemini through backend.
+// Rewrites paragraphs into simpler language while preserving facts, dates, and numbers.
+export async function simplifyArticle(paragraphs, title = '', level = 'simple') {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 50000)
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/simplify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        paragraphs,
+        title: title || undefined,
+        level,
+      }),
+      signal: controller.signal,
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      let code = 'error'
+      let message = 'Failed to simplify article text.'
+
+      if (data && data.detail) {
+        if (typeof data.detail === 'object') {
+          code = data.detail.code || 'error'
+          message = data.detail.message || message
+        } else if (typeof data.detail === 'string') {
+          message = data.detail
+        }
+      }
+
+      return { ok: false, code, message }
+    }
+
+    if (!data || !data.ok) {
+      return { ok: false, code: 'invalid', message: 'Received an invalid simplification response.' }
+    }
+
+    return { ok: true, data }
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return {
+        ok: false,
+        code: 'timeout',
+        message: 'The AI simplification request timed out. Please try again.',
+      }
+    }
+    return {
+      ok: false,
+      code: 'network',
+      message: 'Could not connect to the ClearWeb backend to simplify article.',
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}

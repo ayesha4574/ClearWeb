@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import extract, summarize, urls
+from app.routes import extract, simplify, summarize, urls
 
 # Load backend/.env if it exists
 backend_env = Path(__file__).resolve().parent.parent / ".env"
@@ -31,3 +31,4 @@ def health_check():
 app.include_router(urls.router)
 app.include_router(extract.router)
 app.include_router(summarize.router)
+app.include_router(simplify.router)
