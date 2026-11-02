@@ -11,9 +11,14 @@ The goal is simple: **make information more accessible without taking away the i
 
 ## 🚀 Live Demo
 
-> [!NOTE]
-> **Live Deployment**: *[Deployment URL Coming Soon — Host on Vercel + Render]*  
-> ClearWeb runs seamlessly locally today with full backend SSRF protection and Gemini AI integration. See [Getting Started](#-getting-started) below for local setup commands.
+ClearWeb is deployed and live! Experience distraction-free reading, Bionic Reading, text-to-speech, AI summarisation, and accessible text simplification directly in your browser.
+
+[Launch ClearWeb — Live Demo](https://clear-web-henna.vercel.app/)
+
+> [!TIP]
+> Deployment Architecture: The user-facing application is deployed on Vercel and connects to the production FastAPI backend hosted on Render (https://clearweb-api.onrender.com/).
+
+To run ClearWeb locally instead, see Getting Started.
 
 ## 📸 Screenshots
 
