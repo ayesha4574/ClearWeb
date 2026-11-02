@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 pytest
 httpx2
+trafilatura
+urllib3
+certifi

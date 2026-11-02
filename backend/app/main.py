@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import urls
+from app.routes import extract, urls
 
 app = FastAPI(title="ClearWeb API")
 
@@ -23,3 +23,4 @@ def health_check():
 
 
 app.include_router(urls.router)
+app.include_router(extract.router)
