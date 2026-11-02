@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { checkBackend, extractArticle } from './api.js'
+import { BionicParagraph } from './components/BionicText.jsx'
 import { ReadingControls } from './components/ReadingControls.jsx'
 import { DEFAULT_PREFERENCES } from './readingPreferences.js'
 
@@ -502,13 +503,17 @@ function App() {
                 )}
               </header>
 
-              {/* Article Paragraphs with Stage 5 Dynamic Typography */}
+              {/* Article Paragraphs with Dynamic Typography & Bionic Reading */}
               <div
                 className={`space-y-6 font-normal ${bodyTextColorClass} ${fontSizeClass} ${lineHeightClass} ${fontFamilyClass}`}
               >
                 {article.paragraphs && article.paragraphs.length > 0 ? (
                   article.paragraphs.map((para, index) => (
-                    <p key={index}>{para}</p>
+                    <BionicParagraph
+                      key={index}
+                      text={para}
+                      enabled={preferences.bionicReading}
+                    />
                   ))
                 ) : (
                   <p className="opacity-75 italic">No readable text found for this article.</p>
@@ -533,7 +538,7 @@ function App() {
       {/* Footer */}
       <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 ${headerThemeClass}`}>
         <div className="max-w-4xl mx-auto px-4 opacity-80">
-          ClearWeb Accessibility Reader — Stage 5
+          ClearWeb Accessibility Reader — Stage 6
         </div>
       </footer>
     </div>

@@ -9,6 +9,7 @@ export const DEFAULT_PREFERENCES = {
   lineHeight: 'relaxed', // 'normal' | 'relaxed' | 'loose'
   fontFamily: 'sans', // 'sans' | 'serif' | 'mono' | 'dyslexic'
   contentWidth: 'medium', // 'narrow' | 'medium' | 'wide'
+  bionicReading: false, // boolean
 }
 
 export const THEME_OPTIONS = [

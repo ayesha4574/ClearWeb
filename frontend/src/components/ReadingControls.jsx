@@ -64,17 +64,38 @@ export function ReadingControls({
 
   return (
     <section aria-label="Reading appearance preferences" className="mb-6">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onToggleOpen}
-          aria-expanded={isOpen}
-          aria-controls="reading-controls-panel"
-          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${toggleBtnStyle}`}
-        >
-          <span className="text-base select-none" aria-hidden="true">⚙</span>
-          <span>{isOpen ? 'Hide Reading Options' : 'Reading Options (Text, Theme & Spacing)'}</span>
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onToggleOpen}
+            aria-expanded={isOpen}
+            aria-controls="reading-controls-panel"
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${toggleBtnStyle}`}
+          >
+            <span className="text-base select-none" aria-hidden="true">⚙</span>
+            <span>{isOpen ? 'Hide Reading Options' : 'Reading Options (Text, Theme & Spacing)'}</span>
+          </button>
+
+          {/* Quick 1-click Bionic Reading Toggle */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={preferences.bionicReading}
+            aria-label="Toggle Bionic Reading Mode"
+            onClick={() => onChangePreference('bionicReading', !preferences.bionicReading)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${
+              preferences.bionicReading ? activeBtnStyle : toggleBtnStyle
+            }`}
+          >
+            <span aria-hidden="true">
+              <strong className="font-extrabold">Bio</strong>nic
+            </span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider bg-current/15">
+              {preferences.bionicReading ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        </div>
 
         {isOpen && (
           <button
@@ -99,6 +120,31 @@ export function ReadingControls({
           id="reading-controls-panel"
           className={`mt-4 rounded-xl border p-5 sm:p-6 space-y-6 transition ${panelStyle}`}
         >
+          {/* Bionic Reading Control in drawer */}
+          <fieldset>
+            <legend className="text-sm font-bold tracking-tight mb-2.5">
+              Bionic Reading Mode
+            </legend>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-current/20">
+              <div>
+                <div className="font-semibold text-sm">Eye-guiding fixation points</div>
+                <div className="text-xs opacity-80">
+                  Emphasizes the initial letters of words to help your eyes glide smoothly through the text.
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={preferences.bionicReading}
+                onClick={() => onChangePreference('bionicReading', !preferences.bionicReading)}
+                className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold border cursor-pointer transition focus:outline-2 focus:outline-offset-2 ${
+                  preferences.bionicReading ? activeBtnStyle : inactiveBtnStyle
+                }`}
+              >
+                {preferences.bionicReading ? 'Bionic Mode: ON' : 'Bionic Mode: OFF'}
+              </button>
+            </div>
+          </fieldset>
           {/* 1. Theme Selection */}
           <fieldset>
             <legend className="text-sm font-bold tracking-tight mb-2.5">
