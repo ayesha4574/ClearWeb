@@ -15,7 +15,61 @@ The goal is simple: **make information more accessible without taking away the i
 > **Live Deployment**: *[Deployment URL Coming Soon — Host on Vercel + Render]*  
 > ClearWeb runs seamlessly locally today with full backend SSRF protection and Gemini AI integration. See [Getting Started](#-getting-started) below for local setup commands.
 
-<!-- Add verified application screenshots here -->
+## 📸 Screenshots
+
+A visual walkthrough of ClearWeb's interfaces and accessibility transformation pipeline:
+
+### 1. Modern SaaS Landing Page & URL Input
+Clean landing view featuring live backend health monitoring, SSRF pre-flight validation, and quick-fill sample article presets.
+
+![ClearWeb Landing Page](frontend/public/screenshots/landing-page.png)
+
+*The landing interface with quick-fill presets, feature highlights, and real-time backend connection status.*
+
+---
+
+### 2. Distraction-Free Article Reader
+Clutter-free reading layout with Trafilatura-extracted prose, structured Markdown tables, audio player toolbar, and live readability difficulty badge.
+
+![ClearWeb Article Reader](frontend/public/screenshots/article-reader.png)
+
+*The extracted article view presenting pure prose, clean navigation, word count, and real-time reading difficulty.*
+
+---
+
+### 3. Personalised Reading Preferences & Themes
+Extensive customization drawer supporting 4 WCAG-accessible themes (Light, Sepia, Dark, High Contrast), typography sizing, dyslexia-friendly font stack, line spacing, and column widths.
+
+![Reading Customisation](frontend/public/screenshots/reading-customisation.png)
+
+*Adjustable reading preferences drawer with real-time preview and instant theme switching.*
+
+---
+
+### 4. Gemini AI Executive Summaries
+Structured AI-generated summaries across three depth levels (Short, Medium, Detailed) with bulleted key takeaways, one-click clipboard copy, and dedicated speech playback.
+
+![AI Summary Drawer](frontend/public/screenshots/ai-summary.png)
+
+*Collapsible summary drawer displaying an executive summary, bulleted key takeaways, and audio controls.*
+
+---
+
+### 5. AI Text Simplification & Instant Version Switching
+Faithfully rewrites complex syntax into accessible language across two levels (Simple and Very Simple) while strictly preserving facts, dates, names, and numbers.
+
+![AI Text Simplification](frontend/public/screenshots/text-simplification.png)
+
+*AI simplification controls showing level selection, transparent disclaimers, and instant toggling between Original and Simplified versions.*
+
+---
+
+### 6. Dynamic Transformation Report
+Deterministic session report comparing baseline metrics against simplified text deltas (Reading Ease score, Grade Level, sentence length, and complex words).
+
+![Transformation Report](frontend/public/screenshots/transformation-report.png)
+
+*The dynamic transformation report displaying baseline readability metrics, session transformation tracking, and before/after comparison deltas.*
 
 ---
 
